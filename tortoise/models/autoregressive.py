@@ -39,6 +39,9 @@ class ResBlock(nn.Module):
 
 
 class GPT2InferenceModel(GPT2PreTrainedModel):
+    _keys_to_ignore_on_load_unexpected = [r"h\.\d+\.attn\.bias", r"h\.\d+\.attn\.masked_bias"]
+    _keys_to_ignore_on_load_missing = [r"attn.masked_bias", r"h\.\d+\.attn\.masked_bias", r"h\.\d+\.attn\.bias"]
+
     def __init__(self, config, gpt, text_pos_emb, embeddings, norm, linear, kv_cache):
         super().__init__(config)
         self.transformer = gpt
@@ -81,21 +84,21 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
         }
 
     def forward(
-        self,
-        input_ids=None,
-        past_key_values=None,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
-        head_mask=None,
-        inputs_embeds=None,
-        encoder_hidden_states=None,
-        encoder_attention_mask=None,
-        labels=None,
-        use_cache=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
+            self,
+            input_ids=None,
+            past_key_values=None,
+            attention_mask=None,
+            token_type_ids=None,
+            position_ids=None,
+            head_mask=None,
+            inputs_embeds=None,
+            encoder_hidden_states=None,
+            encoder_attention_mask=None,
+            labels=None,
+            use_cache=None,
+            output_attentions=None,
+            output_hidden_states=None,
+            return_dict=None,
     ):
         assert self.cached_mel_emb is not None
         assert inputs_embeds is None  # Not supported by this inference model.
@@ -170,13 +173,13 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
 
 class ConditioningEncoder(nn.Module):
     def __init__(
-        self,
-        spec_dim,
-        embedding_dim,
-        attn_blocks=6,
-        num_attn_heads=4,
-        do_checkpointing=False,
-        mean=False,
+            self,
+            spec_dim,
+            embedding_dim,
+            attn_blocks=6,
+            num_attn_heads=4,
+            do_checkpointing=False,
+            mean=False,
     ):
         super().__init__()
         attn = []
@@ -209,11 +212,11 @@ class LearnedPositionEmbeddings(nn.Module):
         return self.emb(torch.arange(0, sl, device=x.device))
 
     def get_fixed_embedding(self, ind, dev):
-        return self.emb(torch.arange(0, ind, device=dev))[ind - 1 : ind]
+        return self.emb(torch.arange(0, ind, device=dev))[ind - 1: ind]
 
 
 def build_hf_gpt_transformer(
-    layers, model_dim, heads, max_mel_seq_len, max_text_seq_len, checkpointing
+        layers, model_dim, heads, max_mel_seq_len, max_text_seq_len, checkpointing
 ):
     """
     GPT-2 implemented by the HuggingFace library.
@@ -279,23 +282,23 @@ class MelEncoder(nn.Module):
 
 class UnifiedVoice(nn.Module):
     def __init__(
-        self,
-        layers=8,
-        model_dim=512,
-        heads=8,
-        max_text_tokens=120,
-        max_mel_tokens=250,
-        max_conditioning_inputs=1,
-        mel_length_compression=1024,
-        number_text_tokens=256,
-        start_text_token=None,
-        number_mel_codes=8194,
-        start_mel_token=8192,
-        stop_mel_token=8193,
-        train_solo_embeddings=False,
-        use_mel_codes_as_input=True,
-        checkpointing=True,
-        types=1,
+            self,
+            layers=8,
+            model_dim=512,
+            heads=8,
+            max_text_tokens=120,
+            max_mel_tokens=250,
+            max_conditioning_inputs=1,
+            mel_length_compression=1024,
+            number_text_tokens=256,
+            start_text_token=None,
+            number_mel_codes=8194,
+            start_mel_token=8192,
+            stop_mel_token=8193,
+            train_solo_embeddings=False,
+            use_mel_codes_as_input=True,
+            checkpointing=True,
+            types=1,
     ):
         """
         Args:
@@ -420,21 +423,21 @@ class UnifiedVoice(nn.Module):
         )
         for b in range(len(mel_lengths)):
             actual_end = (
-                mel_lengths[b] + 1
+                    mel_lengths[b] + 1
             )  # Due to the convolutional nature of how these tokens are generated, it would be best if the model predicts a token past the actual last token.
             if actual_end < mel_input_tokens.shape[-1]:
                 mel_input_tokens[b, actual_end:] = self.stop_mel_token
         return mel_input_tokens
 
     def get_logits(
-        self,
-        speech_conditioning_inputs,
-        first_inputs,
-        first_head,
-        second_inputs=None,
-        second_head=None,
-        get_attns=False,
-        return_latent=False,
+            self,
+            speech_conditioning_inputs,
+            first_inputs,
+            first_head,
+            second_inputs=None,
+            second_head=None,
+            get_attns=False,
+            return_latent=False,
     ):
         if second_inputs is not None:
             emb = torch.cat(
@@ -450,27 +453,27 @@ class UnifiedVoice(nn.Module):
             return gpt_out.attentions
 
         enc = gpt_out.last_hidden_state[
-            :, 1:
-        ]  # The first logit is tied to the speech_conditioning_input
+              :, 1:
+              ]  # The first logit is tied to the speech_conditioning_input
         enc = self.final_norm(enc)
 
         if return_latent:
             return (
                 enc[
-                    :,
-                    speech_conditioning_inputs.shape[
-                        1
-                    ] : speech_conditioning_inputs.shape[1]
-                    + first_inputs.shape[1],
+                :,
+                speech_conditioning_inputs.shape[
+                    1
+                ]: speech_conditioning_inputs.shape[1]
+                   + first_inputs.shape[1],
                 ],
-                enc[:, -second_inputs.shape[1] :],
+                enc[:, -second_inputs.shape[1]:],
             )
 
         first_logits = enc[:, : first_inputs.shape[1]]
         first_logits = first_head(first_logits)
         first_logits = first_logits.permute(0, 2, 1)
         if second_inputs is not None:
-            second_logits = enc[:, -second_inputs.shape[1] :]
+            second_logits = enc[:, -second_inputs.shape[1]:]
             second_logits = second_head(second_logits)
             second_logits = second_logits.permute(0, 2, 1)
             return first_logits, second_logits
@@ -491,18 +494,18 @@ class UnifiedVoice(nn.Module):
         return conds
 
     def forward(
-        self,
-        speech_conditioning_latent,
-        text_inputs,
-        text_lengths,
-        mel_codes,
-        wav_lengths,
-        types=None,
-        text_first=True,
-        raw_mels=None,
-        return_attentions=False,
-        return_latent=False,
-        clip_inputs=True,
+            self,
+            speech_conditioning_latent,
+            text_inputs,
+            text_lengths,
+            mel_codes,
+            wav_lengths,
+            types=None,
+            text_first=True,
+            raw_mels=None,
+            return_attentions=False,
+            return_latent=False,
+            clip_inputs=True,
     ):
         """
         Forward pass that uses both text and voice in either text conditioning mode or voice conditioning mode
@@ -565,8 +568,8 @@ class UnifiedVoice(nn.Module):
             )
             if return_latent:
                 return mel_logits[
-                    :, :-2
-                ]  # Despite the name, these are not logits. Strip off the two tokens added by this forward pass.
+                       :, :-2
+                       ]  # Despite the name, these are not logits. Strip off the two tokens added by this forward pass.
         else:
             mel_logits, text_logits = self.get_logits(
                 conds,
@@ -579,8 +582,8 @@ class UnifiedVoice(nn.Module):
             )
             if return_latent:
                 return text_logits[
-                    :, :-2
-                ]  # Despite the name, these are not logits. Strip off the two tokens added by this forward pass.
+                       :, :-2
+                       ]  # Despite the name, these are not logits. Strip off the two tokens added by this forward pass.
 
         if return_attentions:
             return mel_logits
@@ -589,15 +592,15 @@ class UnifiedVoice(nn.Module):
         return loss_text.mean(), loss_mel.mean(), mel_logits
 
     def inference_speech(
-        self,
-        speech_conditioning_latent,
-        text_inputs,
-        input_tokens=None,
-        num_return_sequences=1,
-        max_generate_length=None,
-        typical_sampling=False,
-        typical_mass=0.9,
-        **hf_generate_kwargs
+            self,
+            speech_conditioning_latent,
+            text_inputs,
+            input_tokens=None,
+            num_return_sequences=1,
+            max_generate_length=None,
+            typical_sampling=False,
+            typical_mass=0.9,
+            **hf_generate_kwargs
     ):
         text_inputs = F.pad(text_inputs, (0, 1), value=self.stop_text_token)
         text_inputs, text_targets = self.build_aligned_inputs_and_targets(
@@ -626,7 +629,7 @@ class UnifiedVoice(nn.Module):
             inputs = fake_inputs
         else:
             assert (
-                num_return_sequences % input_tokens.shape[0] == 0
+                    num_return_sequences % input_tokens.shape[0] == 0
             ), "The number of return sequences must be divisible by the number of input sequences"
             fake_inputs = fake_inputs.repeat(num_return_sequences, 1)
             input_tokens = input_tokens.repeat(
